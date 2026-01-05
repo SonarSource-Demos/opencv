@@ -32,6 +32,58 @@ jobs:
           path: .
           format: cyclonedx-json
           output-file: sbom.cdx.json
+      - name: Prune SBOM noise
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          
+          p = Path("sbom.cdx.json")
+          d = json.loads(p.read_text(encoding="utf-8"))
+          
+          deny_types = {"binary", "github-action", "java-archive"}
+          
+          def syft_pkg_type(component: dict) -> str | None:
+            for prop in component.get("properties") or []:
+              if prop.get("name") == "syft:package:type":
+                return prop.get("value")
+            return None
+          
+          comps = d.get("components") or []
+          before = len(comps)
+          kept = []
+          kept_refs = set()
+          
+          for c in comps:
+            t = syft_pkg_type(c)
+            if t in deny_types:
+              continue
+            kept.append(c)
+            ref = c.get("bom-ref")
+            if ref:
+              kept_refs.add(ref)
+          
+          d["components"] = kept
+          
+          # Prune dependency graph to match kept components (if present)
+          deps = d.get("dependencies") or []
+          if deps:
+            new_deps = []
+            for dep in deps:
+              ref = dep.get("ref")
+              if ref and ref not in kept_refs:
+                continue
+              depends_on = dep.get("dependsOn") or []
+              dep["dependsOn"] = [r for r in depends_on if r in kept_refs]
+              new_deps.append(dep)
+            d["dependencies"] = new_deps
+          
+          p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          after = len(d.get("components") or [])
+          print(f"Pruned SBOM components: {before} -> {after} (dropped types: {sorted(deny_types)})")
+          PY
       - name: Dump SBOM to logs
         shell: bash
         run: |
