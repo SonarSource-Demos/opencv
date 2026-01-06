@@ -26,20 +26,19 @@ jobs:
           cmake ..
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_JAVA=OFF -DBUILD_opencv_java=OFF .
           cd ..
-      - name: Generate SBOM for bundled deps (ScanCode / SPDX JSON)
+      - name: Generate SBOM for bundled deps (CycloneDX)
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-cache-dir scancode-toolkit==32.4.1
-          scancode --package --spdx-tv sbom-3rdparty.spdx 3rdparty
+          python3 .github/scripts/generate_3rdparty_sbom.py --output sbom-3rdparty.cdx.json
       - name: Dump SBOM to logs
         shell: bash
         run: |
           set -euo pipefail
-          echo "SBOM file: sbom-3rdparty.spdx"
-          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.spdx)"
+          echo "SBOM file: sbom-3rdparty.cdx.json"
+          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.cdx.json)"
           echo "----- BEGIN SBOM (truncated to first 200000 bytes) -----"
-          head -c 200000 sbom-3rdparty.spdx || true
+          head -c 200000 sbom-3rdparty.cdx.json || true
           echo
           echo "----- END SBOM -----"
       - name: Run SonarQube scan
@@ -51,4 +50,4 @@ jobs:
           args: >
             -X
             -Dsonar.sca.enabled=true
-            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.spdx
+            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.cdx.json
