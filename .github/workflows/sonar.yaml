@@ -29,9 +29,9 @@ jobs:
       - name: Generate SBOM (Syft / CycloneDX)
         uses: anchore/sbom-action@v0.21.0
         with:
-          path: .
+          path: 3rdparty
           format: cyclonedx-json
-          output-file: sbom.cdx.json
+          output-file: sbom-3rdparty.cdx.json
       - name: Prune SBOM noise
         shell: bash
         run: |
@@ -40,7 +40,7 @@ jobs:
           import json
           from pathlib import Path
 
-          p = Path("sbom.cdx.json")
+          p = Path("sbom-3rdparty.cdx.json")
           d = json.loads(p.read_text(encoding="utf-8"))
 
           deny_types = {"binary", "github-action", "java-archive"}
@@ -92,10 +92,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "SBOM file: sbom.cdx.json"
-          echo "SBOM size (bytes): $(wc -c < sbom.cdx.json)"
+          echo "SBOM file: sbom-3rdparty.cdx.json"
+          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.cdx.json)"
           echo "----- BEGIN SBOM (truncated to first 200000 bytes) -----"
-          head -c 200000 sbom.cdx.json || true
+          head -c 200000 sbom-3rdparty.cdx.json || true
           echo
           echo "----- END SBOM -----"
       - name: Run SonarQube scan
@@ -107,4 +107,4 @@ jobs:
           args: >
             -X
             -Dsonar.sca.enabled=true
-            -Dsonar.sca.sbomImportPaths=sbom.cdx.json
+            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.cdx.json
