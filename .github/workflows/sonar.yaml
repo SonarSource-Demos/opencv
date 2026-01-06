@@ -31,15 +31,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --no-cache-dir scancode-toolkit==32.4.1
-          scancode --package --spdx-json sbom-3rdparty.spdx.json 3rdparty
+          scancode --package --spdx-tv sbom-3rdparty.spdx 3rdparty
       - name: Dump SBOM to logs
         shell: bash
         run: |
           set -euo pipefail
-          echo "SBOM file: sbom-3rdparty.spdx.json"
-          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.spdx.json)"
+          echo "SBOM file: sbom-3rdparty.spdx"
+          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.spdx)"
           echo "----- BEGIN SBOM (truncated to first 200000 bytes) -----"
-          head -c 200000 sbom-3rdparty.spdx.json || true
+          head -c 200000 sbom-3rdparty.spdx || true
           echo
           echo "----- END SBOM -----"
       - name: Run SonarQube scan
@@ -51,4 +51,4 @@ jobs:
           args: >
             -X
             -Dsonar.sca.enabled=true
-            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.spdx.json
+            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.spdx
