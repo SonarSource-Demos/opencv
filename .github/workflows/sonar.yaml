@@ -30,10 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/w" \
-            aboutcodeorg/scancode-toolkit:latest \
-            scancode --package --spdx-json /w/sbom-3rdparty.spdx.json /w/3rdparty
+          python3 -m pip install --disable-pip-version-check --no-cache-dir scancode-toolkit==32.4.1
+          scancode --package --spdx-json sbom-3rdparty.spdx.json 3rdparty
       - name: Dump SBOM to logs
         shell: bash
         run: |
