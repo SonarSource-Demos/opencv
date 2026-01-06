@@ -26,76 +26,22 @@ jobs:
           cmake ..
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_JAVA=OFF -DBUILD_opencv_java=OFF .
           cd ..
-      - name: Generate SBOM (Syft / CycloneDX)
-        uses: anchore/sbom-action@v0.21.0
-        with:
-          path: 3rdparty
-          format: cyclonedx-json
-          output-file: sbom-3rdparty.cdx.json
-      - name: Prune SBOM noise
+      - name: Generate SBOM for bundled deps (ScanCode / SPDX JSON)
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          p = Path("sbom-3rdparty.cdx.json")
-          d = json.loads(p.read_text(encoding="utf-8"))
-
-          deny_types = {"binary", "github-action", "java-archive"}
-
-          def syft_pkg_type(component: dict) -> str | None:
-            for prop in component.get("properties") or []:
-              if prop.get("name") == "syft:package:type":
-                return prop.get("value")
-            return None
-
-          comps = d.get("components") or []
-          before = len(comps)
-          kept = []
-          kept_refs = set()
-
-          for c in comps:
-            t = syft_pkg_type(c)
-            # Only keep components that Syft actually identified as a package.
-            # This drops generic "file" components that add noise but no dependency signal.
-            if not t:
-              continue
-            if t in deny_types:
-              continue
-            kept.append(c)
-            ref = c.get("bom-ref")
-            if ref:
-              kept_refs.add(ref)
-
-          d["components"] = kept
-
-          # Prune dependency graph to match kept components (if present)
-          deps = d.get("dependencies") or []
-          if deps:
-            new_deps = []
-            for dep in deps:
-              ref = dep.get("ref")
-              if ref and ref not in kept_refs:
-                continue
-              depends_on = dep.get("dependsOn") or []
-              dep["dependsOn"] = [r for r in depends_on if r in kept_refs]
-              new_deps.append(dep)
-            d["dependencies"] = new_deps
-
-          p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          after = len(d.get("components") or [])
-          print(f"Pruned SBOM components: {before} -> {after} (dropped types: {sorted(deny_types)})")
-          PY
+          docker run --rm \
+            -v "$PWD:/w" \
+            aboutcodeorg/scancode-toolkit:latest \
+            scancode --package --spdx-json /w/sbom-3rdparty.spdx.json /w/3rdparty
       - name: Dump SBOM to logs
         shell: bash
         run: |
           set -euo pipefail
-          echo "SBOM file: sbom-3rdparty.cdx.json"
-          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.cdx.json)"
+          echo "SBOM file: sbom-3rdparty.spdx.json"
+          echo "SBOM size (bytes): $(wc -c < sbom-3rdparty.spdx.json)"
           echo "----- BEGIN SBOM (truncated to first 200000 bytes) -----"
-          head -c 200000 sbom-3rdparty.cdx.json || true
+          head -c 200000 sbom-3rdparty.spdx.json || true
           echo
           echo "----- END SBOM -----"
       - name: Run SonarQube scan
@@ -107,4 +53,4 @@ jobs:
           args: >
             -X
             -Dsonar.sca.enabled=true
-            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.cdx.json
+            -Dsonar.sca.sbomImportPaths=sbom-3rdparty.spdx.json
